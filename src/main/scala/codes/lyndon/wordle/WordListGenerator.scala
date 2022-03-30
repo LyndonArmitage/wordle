@@ -22,7 +22,7 @@ object WordListGenerator {
       .toSeq
 
     // This pattern matches only simple 5 letter words
-    val regex = """([A-Z]{5})""".r
+    val regex = """([a-z]{5})""".r
 
     val words = textFiles
       .flatMap { file =>
@@ -31,7 +31,7 @@ object WordListGenerator {
           // any of the characters in the given string
           .scanner(StringSplitter.anyOf("\n\t .,\""))()(
             _.iterator
-              .map(_.toUpperCase)
+              .map(_.toLowerCase)
               .filter(regex.matches(_))
               .toSeq
           )
