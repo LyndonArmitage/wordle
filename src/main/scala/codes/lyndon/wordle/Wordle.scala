@@ -106,12 +106,19 @@ object Wordle {
                 .mkString(" ")
               println(status)
 
+              val forHelper = check.map { case (_, guess) => guess match {
+                case Correct => '+'
+                case Incorrect => 'x'
+                case Present => '~'
+              }}.mkString
+              println(forHelper)
+
               if (
                 check.count { case (_, guess) =>
                   guess == Correct
                 } == check.length
               ) {
-                println("You win!")
+                println(s"You win in $guessCount guesses!")
                 game.copy(guesses = guessCount, state = Win)
               } else if (guessCount >= game.maxGuesses) {
                 println("You lose!")

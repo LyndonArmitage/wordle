@@ -17,28 +17,72 @@ object WordleHelper {
     val words =
       mutable.ListBuffer.from(Random.shuffle(File(args(0)).lines.toSeq))
     println(s"Word list of ${words.size} loaded")
-    val state = WordValidity()
-    guess(words, state)
+
+    val freq = letterFrequency(words.toSeq)
+
+    val startWordSuggestion = suggestWord(words)
+    println(s"Start word suggestion: $startWordSuggestion")
+
+    val state = GuessState(WordValidity(), words)
+    guess(state)
   }
 
   @tailrec
-  def guess(words: mutable.ListBuffer[String], state: WordValidity): Unit = {
+  def get5CharacterInput(): String = {
+    val input = scala.io.StdIn.readLine()
+    if (input != null && input.length == 5) {
+      input
+    } else {
+      println("Enter 5 characters:")
+      get5CharacterInput()
+    }
+  }
+
+  @tailrec
+  def guess(state: GuessState): Unit = {
     println("Enter guess:")
-    val wordGuess = scala.io.StdIn.readLine()
+    val wordGuess = get5CharacterInput()
     println(
       "Enter letter validity, x means not present, + means correct, ~ means present but wrong place:"
     )
-    val letterValidity = parseLetters(wordGuess, scala.io.StdIn.readLine())
+    val letterValidity = parseLetters(wordGuess, get5CharacterInput())
+    val newGuessState = updateState(wordGuess, letterValidity, state)
 
-    val newGuesses: Seq[String] = state.guesses.appended(wordGuess)
+    val words = newGuessState.words
+    println(s"${words.size} words remain")
+
+    if (words.size == 1) {
+      println(s"word is: ${words.head}")
+    } else if (words.isEmpty) {
+      println("No matching word")
+    } else {
+      val suggestion = suggestWord(words)
+      println(s"Suggested word: $suggestion")
+      println("Other possibles:")
+      words.take(10).foreach(println)
+      guess(newGuessState)
+    }
+  }
+
+  def updateState(
+      wordGuess: String,
+      letterValidity: Seq[(Char, Validity)],
+      current: GuessState
+  ): GuessState = {
+
+    val wordValidity = current.wordValidity
+    val words = current.words
+
+    val newGuesses: Seq[String] = wordValidity.guesses.appended(wordGuess)
 
     val initialUpdated =
-      letterValidity.zip(state.letters).map { case ((c, validity), letter) =>
-        validity match {
-          case Valid         => LetterValidity(c)
-          case Invalid       => letter.remove(c)
-          case WrongPosition => letter.remove(c)
-        }
+      letterValidity.zip(wordValidity.letters).map {
+        case ((c, validity), letter) =>
+          validity match {
+            case Valid         => LetterValidity(c)
+            case Invalid       => letter.remove(c)
+            case WrongPosition => letter.remove(c)
+          }
       }
 
     val invalidChars = letterValidity
@@ -58,18 +102,13 @@ object WordleHelper {
     // remove the guess
     words -= wordGuess
     alignWords(words, updated, wrongPositionChars)
-
-    println(s"${words.size} words remain")
-    words.take(10).foreach(println)
-
-    if (words.size == 1) {
-      println(s"word is: ${words.head}")
-    } else if (words.isEmpty) {
-      println("No matching word")
-    } else {
-      guess(words, WordValidity(newGuesses, updated))
-    }
+    GuessState(WordValidity(newGuesses, updated), words)
   }
+
+  case class GuessState(
+      wordValidity: WordValidity,
+      words: mutable.ListBuffer[String]
+  )
 
   def alignWords(
       words: mutable.ListBuffer[String],
@@ -103,6 +142,87 @@ object WordleHelper {
           case '~' => WrongPosition
         }
       )
+    }
+  }
+
+  def letterFrequency(words: Seq[String]) : Seq[(Char, Int)] = {
+    words.flatMap { word => word.toCharArray}
+      .groupBy(x => x)
+      .view
+      .mapValues(_.length)
+      .toSeq
+      .sortBy(_._2)
+      .reverse
+  }
+
+  def getNgrams(
+      words: mutable.ListBuffer[String],
+      n: Int = 2,
+      unique: Boolean = true
+  ): Seq[(String, Int)] = {
+    words
+      .flatMap { word =>
+        val ngrams = word.sliding(n).toSeq
+        if (unique) ngrams.distinct
+        else ngrams
+      }
+      .groupBy(x => x)
+      .view
+      .mapValues(_.length)
+      .toSeq
+      .sortBy(a => a._2)
+      .reverse
+  }
+
+  def wordWithMostDifferentLetters(words: Seq[String]): Option[String] = {
+    words
+      .map { word => (word, word.distinct.sorted) }
+      .sortBy { case (_, letters) => letters.length }
+      .reverse
+      .map(_._1)
+      .headOption
+  }
+
+  def ngramSuggestions(
+      words: mutable.ListBuffer[String],
+      n: Int = 2
+  ): Seq[String] = {
+    val ngrams = getNgrams(words, n).take(3)
+    val wordsWithTopNgram = words.filter { word =>
+      word.contains(ngrams.head._1)
+    }
+    val suggestions = if (ngrams.size > 1) {
+      val wordsWithTop2 = wordsWithTopNgram.filter { word =>
+        word.contains(ngrams(1))
+      }
+      if (wordsWithTop2.nonEmpty) {
+        if (ngrams.size > 2) {
+          val wordsWithTop3 = wordsWithTop2.filter { word =>
+            word.contains(ngrams(2))
+          }
+          if (wordsWithTop3.nonEmpty) wordsWithTop3
+          else wordsWithTop2
+        } else {
+          wordsWithTop2
+        }
+      } else {
+        wordsWithTopNgram
+      }
+    } else {
+      wordsWithTopNgram
+    }
+    suggestions.take(10).toSeq
+  }
+
+  def suggestWord(words: mutable.ListBuffer[String], n: Int = 2): String = {
+    val ngramSuggests = ngramSuggestions(words, n)
+    if(ngramSuggests.nonEmpty) {
+      wordWithMostDifferentLetters(ngramSuggests) match {
+        case Some(value) => value
+        case None => ngramSuggests.head
+      }
+    } else {
+      wordWithMostDifferentLetters(words.toSeq).head
     }
   }
 
