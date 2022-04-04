@@ -28,24 +28,36 @@ object WordleHelper {
   }
 
   @tailrec
-  def get5CharacterInput(): String = {
+  def read5LetterWord(state: GuessState): String = {
+    val validLetters = state.wordValidity.allValidLetters
+    val word = get5CharacterInput(validLetters)
+    if(!state.wordValidity.guesses.contains(word) && state.words.contains(word)) {
+      word
+    } else {
+      read5LetterWord(state)
+    }
+  }
+  def readGuessValidity(): String = get5CharacterInput(Seq('+', 'x', '~'))
+
+  @tailrec
+  def get5CharacterInput(validChars: Seq[Char]): String = {
     val input = scala.io.StdIn.readLine()
-    if (input != null && input.length == 5) {
+    if (input != null && input.length == 5 && input.forall(validChars.contains(_))) {
       input
     } else {
-      println("Enter 5 characters:")
-      get5CharacterInput()
+      println(s"Enter 5 valid characters ${validChars.mkString(", ")}:")
+      get5CharacterInput(validChars)
     }
   }
 
   @tailrec
   def guess(state: GuessState): Unit = {
     println("Enter guess:")
-    val wordGuess = get5CharacterInput()
+    val wordGuess = read5LetterWord(state)
     println(
       "Enter letter validity, x means not present, + means correct, ~ means present but wrong place:"
     )
-    val letterValidity = parseLetters(wordGuess, get5CharacterInput())
+    val letterValidity = parseLetters(wordGuess, readGuessValidity())
     val newGuessState = updateState(wordGuess, letterValidity, state)
 
     val words = newGuessState.words
@@ -250,6 +262,10 @@ object WordleHelper {
   case class WordValidity(
       guesses: Seq[String] = Seq.empty,
       letters: Seq[LetterValidity] = Seq.fill(6)(LetterValidity())
-  )
+  ) {
+    def allValidLetters: Seq[Char] = {
+      letters.flatMap(_.letters).distinct.sorted
+    }
+  }
 
 }
