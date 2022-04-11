@@ -97,10 +97,17 @@ object WordleHelper {
           }
       }
 
+    // we need this to fix when guessing words with multiple of the
+    // same character
+    val validChars = letterValidity
+      .filter { case (_, validity) => validity == Valid}
+      .map(_._1)
+      .toSet
+
     val invalidChars = letterValidity
       .filter { case (_, validity) => validity == Invalid }
       .map(_._1)
-      .toSet
+      .toSet -- validChars
 
     val wrongPositionChars = letterValidity
       .filter { case (_, validity) => validity == WrongPosition }
