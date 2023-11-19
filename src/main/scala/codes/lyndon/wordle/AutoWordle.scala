@@ -57,6 +57,20 @@ object AutoWordle {
       .toSeq
       .sortBy(_._1)
       .foreach { case (wordsLeft, count) => println(s"$wordsLeft,$count") }
+
+    val (worstCount, worstSet) = losses
+      .groupBy { case AutoResult(_, _, _, wordsLeft) => wordsLeft.length }
+      .toSeq
+      .sortBy(_._1)
+      .reverse
+      .head
+    println(s"Worst Count $worstCount")
+    worstSet.foreach { case AutoResult(_, actualWord, guesses, wordsLeft) =>
+      println(s"Actual Word: $actualWord")
+      println(s"Guesses: ${guesses.mkString(", ")}")
+      println(s"Words Left: ${wordsLeft.mkString(", ")}")
+    }
+
   }
 
   def autoPlay(actualWord: String, wordList: File, shouldLog: Boolean = true): AutoResult = {
